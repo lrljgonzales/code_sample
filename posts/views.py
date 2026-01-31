@@ -7,7 +7,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .serializers import UserSerializer, PostSerializer, CommentSerializer
-
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
+from .permissions import IsPostAuthor
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 def get_users(request):
     try:
@@ -21,10 +25,18 @@ def create_user(request):
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            user = User.objects.create(username=data['username'], email=data['email'])
-            return JsonResponse({'id': user.id, 'message': 'User created successfully'}, status=201)
+            user = User.objects.create_user(username=data['username'],email=data['email'], password=data['password'])
+            #user= User.objects.create(username=data['username'], email=data['email'])
+            return JsonResponse({'id': user.password, 'message': 'User created successfully'}, status=201)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=400)
+#sample      
+def login(request):
+    user = authenticate(username="new_user", password="secure_pass123")
+    if user is not None:
+        print("Authentication successful!")
+    else:
+        print("Invalid credentials.")
 
 def get_posts(request):
     try:
@@ -85,5 +97,18 @@ class CommentListCreate(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class PostDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsPostAuthor]
 
+    def get(self, request, pk):
+        post = Post.objects.get(pk=pk)
+        self.check_object_permissions(request, post)
+        return Response({"content": post.content})
+
+class ProtectedView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"message": "Authenticated!"})
 
